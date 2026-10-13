@@ -13,8 +13,7 @@
   * { box-sizing: border-box; }
   body { margin:0; font-family: system-ui, Arial, sans-serif; background:var(--bg); color:var(--text); }
   .container { max-width:1100px; margin:0 auto; padding:20px 16px 40px; }
-  h1 { margin:0 0 4px; }
-  .sub { color:var(--muted); margin:0 0 16px; }
+  h1 { margin:0 0 16px; }
   .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:16px; }
   .team ul { margin:8px 0 0; padding-left:20px; }
   .toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
@@ -37,12 +36,18 @@
   .pager { display:flex; gap:6px; justify-content:center; align-items:center; margin-top:16px; flex-wrap:wrap; }
   .msg { text-align:center; padding:30px; color:var(--muted); }
   .error { color:#dc2626; }
+
+  /* Slider ảnh chụp code */
+  .shot { display:block; max-width:100%; border:1px solid var(--border); border-radius:8px; }
+  .slider { display:flex; align-items:center; gap:10px; margin-top:12px; }
+  .slider a { flex:1; min-width:0; text-align:center; }
+  .slider .shot { margin:0 auto; max-height:380px; width:auto; }
+  .shot-count { text-align:center; color:var(--muted); font-size:14px; margin-top:8px; }
 </style>
 </head>
 <body>
 <div id="app" class="container">
   <h1>Danh sách người dùng</h1>
-  <p class="sub"></p>
 
   <!-- Thông tin nhóm -->
   <div class="card team">
@@ -50,6 +55,19 @@
     <ul>
       <li v-for="m in team.members" :key="m.id">{{ m.name }} – {{ m.id }}</li>
     </ul>
+  </div>
+
+  <!-- Ảnh chụp code (slider) -->
+  <div class="card">
+    <strong>🖥️ Ảnh chụp code trong VS Code</strong>
+    <div class="slider">
+      <button @click="prevShot">‹</button>
+      <a :href="shots[shotIndex]" target="_blank">
+        <img :src="shots[shotIndex]" :alt="'Code ' + (shotIndex + 1)" class="shot">
+      </a>
+      <button @click="nextShot">›</button>
+    </div>
+    <div class="shot-count">{{ shotIndex + 1 }} / {{ shots.length }}</div>
   </div>
 
   <!-- Thanh công cụ: tìm kiếm / lọc / sắp xếp / chế độ xem -->
@@ -124,14 +142,20 @@ const PAGE_SIZE = 12;
 
 createApp({
   setup() {
-
+    // Thông tin nhóm
     const team = {
       name: "Nhóm 9",
       members: [
         { name: "Trần Võ Thuý Vy", id: "DH52201787" },
-        { name: "Trương Nguyễn Tường Vy",   id: "DH52201788" },
+        { name: "Trương Nguyễn Tường Vy", id: "DH52201788" },
       ],
     };
+
+    // Slider ảnh chụp code
+    const shots = ["code1.png", "code2.png", "code3.png", "code4.png", "code5.png", "code6.png", "code7.png"];
+    const shotIndex = ref(0);
+    const nextShot = () => { shotIndex.value = (shotIndex.value + 1) % shots.length; };
+    const prevShot = () => { shotIndex.value = (shotIndex.value - 1 + shots.length) % shots.length; };
 
     const users = ref([]);
     const loading = ref(true);
@@ -193,6 +217,7 @@ createApp({
     return {
       team, users, loading, error, keyword, country, sortKey, sortDir, view, page,
       countries, result, totalPages, pageData, toggleDir, clickHeader, arrow,
+      shots, shotIndex, nextShot, prevShot,
     };
   },
 }).mount("#app");
