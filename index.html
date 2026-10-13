@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quản lý người dùng - Vue.js</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.4.27/vue.global.prod.min.js"></script>
+<style>
+  :root { --bg:#f5f6fa; --card:#fff; --text:#1f2937; --muted:#6b7280; --primary:#42b883; --border:#e5e7eb; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#111827; --card:#1f2937; --text:#f3f4f6; --muted:#9ca3af; --primary:#42b883; --border:#374151; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, Arial, sans-serif; background:var(--bg); color:var(--text); }
+  .container { max-width:1100px; margin:0 auto; padding:20px 16px 40px; }
+  h1 { margin:0 0 4px; }
+  .sub { color:var(--muted); margin:0 0 16px; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:16px; }
+  .team ul { margin:8px 0 0; padding-left:20px; }
+  .toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+  input, select, button { padding:9px 12px; border:1px solid var(--border); border-radius:8px; background:var(--card); color:var(--text); font-size:14px; }
+  input[type=search] { flex:1; min-width:200px; }
+  button { cursor:pointer; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  button.active { background:var(--primary); color:#fff; border-color:var(--primary); }
+  .count { color:var(--muted); font-size:14px; margin:12px 0; }
+  .table-wrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; background:var(--card); }
+  th, td { padding:10px 12px; text-align:left; border-bottom:1px solid var(--border); white-space:nowrap; }
+  th.sortable { cursor:pointer; user-select:none; }
+  th.sortable:hover { color:var(--primary); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:12px; }
+  .user { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px; }
+  .user h3 { margin:0 0 6px; font-size:16px; }
+  .user p { margin:3px 0; color:var(--muted); font-size:14px; }
+  .badge { display:inline-block; background:var(--primary); color:#fff; border-radius:999px; padding:1px 9px; font-size:12px; }
+  .pager { display:flex; gap:6px; justify-content:center; align-items:center; margin-top:16px; flex-wrap:wrap; }
+  .msg { text-align:center; padding:30px; color:var(--muted); }
+  .error { color:#dc2626; }
+</style>
+</head>
+<body>
+<div id="app" class="container">
+  <h1>Danh sách người dùng</h1>
+  <p class="sub"></p>
+
+  <!-- Thông tin nhóm -->
+  <div class="card team">
+    <strong>👥 {{ team.name }}</strong>
+    <ul>
+      <li v-for="m in team.members" :key="m.id">{{ m.name }} – {{ m.id }}</li>
+    </ul>
+  </div>
+
+  <!-- Thanh công cụ: tìm kiếm / lọc / sắp xếp / chế độ xem -->
+  <div class="card toolbar">
+    <input type="search" v-model="keyword" placeholder="🔍 Tìm theo tên người dùng...">
+    <select v-model="country">
+      <option value="">Tất cả quốc gia</option>
+      <option v-for="c in countries" :key="c" :value="c">{{ c }}</option>
+    </select>
+    <select v-model="sortKey">
+      <option value="hoten">Sắp xếp theo: Tên</option>
+      <option value="quocgia">Sắp xếp theo: Quốc gia</option>
+      <option value="id">Sắp xếp theo: ID</option>
+    </select>
+    <button @click="toggleDir">{{ sortDir === 'asc' ? '⬆ Tăng dần (A→Z)' : '⬇ Giảm dần (Z→A)' }}</button>
+    <button :class="{ active: view === 'table' }" @click="view = 'table'">Bảng</button>
+    <button :class="{ active: view === 'grid' }" @click="view = 'grid'">Lưới</button>
+  </div>
+
+  <div v-if="loading" class="msg">Đang tải dữ liệu...</div>
+  <div v-else-if="error" class="msg error">{{ error }}</div>
+
+  <template v-else>
+    <div class="count">Tìm thấy <b>{{ result.length }}</b> / {{ users.length }} người dùng</div>
+
+    <div v-if="result.length === 0" class="msg">Không có kết quả phù hợp.</div>
+
+    <!-- Dạng bảng -->
+    <div v-else-if="view === 'table'" class="table-wrap card" style="padding:0">
+      <table>
+        <thead>
+          <tr>
+            <th class="sortable" @click="clickHeader('id')">ID{{ arrow('id') }}</th>
+            <th class="sortable" @click="clickHeader('hoten')">Họ tên{{ arrow('hoten') }}</th>
+            <th class="sortable" @click="clickHeader('quocgia')">Quốc gia{{ arrow('quocgia') }}</th>
+            <th>Địa chỉ</th>
+            <th>Điện thoại</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="u in pageData" :key="u.id">
+            <td>{{ u.id }}</td><td>{{ u.hoten }}</td><td>{{ u.quocgia }}</td>
+            <td>{{ u.diachi }}</td><td>{{ u.phone }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Dạng lưới -->
+    <div v-else class="grid">
+      <div class="user" v-for="u in pageData" :key="u.id">
+        <h3>{{ u.hoten }} <span class="badge">#{{ u.id }}</span></h3>
+        <p>🌍 {{ u.quocgia }}</p>
+        <p>📍 {{ u.diachi }}</p>
+        <p>📞 {{ u.phone }}</p>
+      </div>
+    </div>
+
+    <div class="pager">
+      <button :disabled="page === 1" @click="page--">‹ Trước</button>
+      <span>Trang {{ page }} / {{ totalPages }}</span>
+      <button :disabled="page === totalPages" @click="page++">Sau ›</button>
+    </div>
+  </template>
+</div>
+
+<script>
+const { createApp, ref, computed, watch, onMounted } = Vue;
+
+const API_URL = "https://6a830a1ecb486d2434033464.mockapi.io/nguoidung";
+const PAGE_SIZE = 12;
+
+createApp({
+  setup() {
+
+    const team = {
+      name: "Nhóm 9",
+      members: [
+        { name: "Trần Võ Thuý Vy", id: "DH52201787" },
+        { name: "Trương Nguyễn Tường Vy",   id: "DH52201788" },
+      ],
+    };
+
+    const users = ref([]);
+    const loading = ref(true);
+    const error = ref("");
+
+    const keyword = ref("");
+    const country = ref("");
+    const sortKey = ref("hoten");   // hoten | quocgia | id
+    const sortDir = ref("asc");     // asc | desc
+    const view = ref("table");      // table | grid
+    const page = ref(1);
+
+    // Lấy dữ liệu từ API
+    onMounted(async () => {
+      try {
+        const res = await fetch(API_URL);
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        users.value = await res.json();
+      } catch (err) {
+        error.value = "Không tải được dữ liệu: " + err.message;
+      } finally {
+        loading.value = false;
+      }
+    });
+
+    // Danh sách quốc gia cho bộ lọc
+    const countries = computed(() =>
+      [...new Set(users.value.map(u => u.quocgia))].sort((a, b) => a.localeCompare(b))
+    );
+
+    // Tìm kiếm + lọc + sắp xếp
+    const result = computed(() => {
+      const kw = keyword.value.trim().toLowerCase();
+      const list = users.value.filter(u =>
+        (!kw || u.hoten.toLowerCase().includes(kw)) &&
+        (!country.value || u.quocgia === country.value)
+      );
+      list.sort((a, b) => {
+        const cmp = sortKey.value === "id"
+          ? Number(a.id) - Number(b.id)
+          : String(a[sortKey.value]).localeCompare(String(b[sortKey.value]));
+        return sortDir.value === "asc" ? cmp : -cmp;
+      });
+      return list;
+    });
+
+    // Phân trang
+    const totalPages = computed(() => Math.max(1, Math.ceil(result.value.length / PAGE_SIZE)));
+    const pageData = computed(() => result.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
+    watch([keyword, country, sortKey, sortDir], () => { page.value = 1; });
+
+    const toggleDir = () => { sortDir.value = sortDir.value === "asc" ? "desc" : "asc"; };
+    const clickHeader = (key) => {
+      if (sortKey.value === key) toggleDir();
+      else { sortKey.value = key; sortDir.value = "asc"; }
+    };
+    const arrow = (key) => sortKey.value === key ? (sortDir.value === "asc" ? " ▲" : " ▼") : "";
+
+    return {
+      team, users, loading, error, keyword, country, sortKey, sortDir, view, page,
+      countries, result, totalPages, pageData, toggleDir, clickHeader, arrow,
+    };
+  },
+}).mount("#app");
+</script>
+</body>
+</html>
